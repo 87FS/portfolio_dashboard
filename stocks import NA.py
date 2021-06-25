@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import pandas_datareader as pdr
-
+#test
 
 ## connecting to spreadsheets through Google Cloud Service
 scope = ['https://spreadsheets.google.com/feeds',
@@ -166,6 +166,6 @@ x["Average Price"] = x["Total Purchase"] / x["Value Amount"]
 #stocks.sort_values(["Date", "Ticker"], inplace=True)
 #stocks.drop_duplicates()
 #stocks.reset_index(drop = True, inplace=True)
-portfolio[0].to_csv("1")
-portfolio[1].to_csv("2")
-x.to_csv("test.csv")
+#portfolio[0].to_csv("1")
+#portfolio[1].to_csv("2")
+#x.to_csv("test.csv")
