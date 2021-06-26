@@ -31,63 +31,14 @@ investments["Purchase Price"] = investments["Purchase Price"].str.replace(",", "
 stock_prices_dataframes = []
 portfolio = []
 for index, ticker in investments.iterrows():
-    if ticker["Currency"] == "PLN":
-        symbol = ticker["Ticker"][:3]
-        stock_start_date = pd.to_datetime(ticker["Purchase Date"]
-                                    , dayfirst=False
-                                    , yearfirst = True)
+    stock = yf.Ticker(ticker["Ticker"])
 
-        out_prices_raw = pdr.stooq.StooqDailyReader(ticker["Ticker"]
-                                        , start = stock_start_date
-                                        , end = np.datetime64("today")).read()
-
-        ## scraping dividends data, checking if dividends were ever issued
-        try:
-            url = f"https://strefainwestorow.pl/notowania/gpw/{symbol}/dywidendy"
-
-
-            out_div_raw = pd.read_html(url, match = "Dywidenda za rok")[0]
-
-            out_div_raw.columns = ( [".", "Date", ".", ".", "Dividends"])
-            out_div_raw[["Dividends", "."]] = out_div_raw["Dividends"].str.split(" ", expand = True)
-            out_div_raw["Dividends"] = out_div_raw["Dividends"].astype(float)
-
-            out_div_fixed = out_div_raw[["Date", "Dividends"]].copy()
-            out_div_fixed["Date"] = out_div_fixed["Date"].astype('datetime64[D]')
-
-            ## column contains the last date to buy stock, but the cut-dividend is the next valid session
-            ## one cannot add 1 day since it could show up on the weekend, instead use busday_offset
-            out_div_fixed["Date"] = np.busday_offset( np.array(out_div_fixed["Date"]
-                                                                , dtype = 'datetime64[D]')
-                                                                    , offsets = 1
-                                                                    , roll = "forward")
-
-            out_prices_raw = pd.merge(left = out_prices_raw
-                                        ,right = out_div_fixed
-                                        , on = "Date"
-                                        , how = "left")
-
-            out_prices_raw.fillna(0, inplace = True)
-
-            ## ImportError means that there were never dividends issued by the company
-        except ImportError:
-            ## adding missing column in such situation
-            out_prices_raw["Dividends"] = 0.0
-
-        ## adding missing column
-        out_prices_raw["Stock Splits"] = 0.0
-
-        ## unifying dataframe end look to the other scraper
-        out_prices_raw.set_index("Date", inplace = True)
-
-    else:
-        stock = yf.Ticker(ticker["Ticker"])
-
-        stock_start_date = pd.to_datetime(ticker["Purchase Date"]
-                                    , dayfirst=False
-                                    , yearfirst = True)
-        ## downloading price history
-        out_prices_raw = stock.history(start = stock_start_date
+    stock_start_date = pd.to_datetime(ticker["Purchase Date"]
+                                , dayfirst=False
+                                , yearfirst = True
+                                , auto_adjust = False)
+    ## downloading price history
+    out_prices_raw = stock.history(start = stock_start_date
                                               , end = np.datetime64("today")
                                               , interval = "1d")
 
@@ -95,14 +46,19 @@ for index, ticker in investments.iterrows():
     ## adding ticker name
     out_prices_raw["Ticker"] = ticker["Ticker"]
 
-    ## setting ticker name first
-    order = [7,0,1,2,3,4,5,6]
-    out_prices_raw = out_prices_raw[ [out_prices_raw.columns[i] for i in order] ]
+    ## clearing the dataframe of useless data
 
+    out_prices_raw_cleared = out_prices_raw[ ["Ticker"
+                                             , "Close"
+                                             , "Dividends"
+                                             , "Stock Splits"] ].copy(deep=True)
+                                             
     ## putting dates into column (from index)
-    out_prices_raw.reset_index(inplace=True)
-    out_prices_raw.rename( columns = {"index" : "Date"}, inplace = True)
-    out_prices_raw["Date"] = out_prices_raw["Date"].astype(np.datetime64)
+    out_prices_raw_cleared.reset_index(inplace=True)
+
+    out_prices_raw_cleared.rename( columns = {"index" : "Date", "Close" : "Price"}, inplace = True)
+    out_prices_raw_cleared["Date"] = out_prices_raw_cleared["Date"].astype(np.datetime64)
+    
     ## filling missing data (no weekends, etc)
     all_days = pd.date_range(start = stock_start_date
                                 , end = np.datetime64("today")
@@ -111,12 +67,18 @@ for index, ticker in investments.iterrows():
     df_all_days = pd.DataFrame(all_days, columns = ["Date"])
 
     out_prices_fixed = pd.merge(left = df_all_days
-                                     , right = out_prices_raw
+                                     , right = out_prices_raw_cleared
                                      , on = "Date"
                                      , how = "left")
 
     ## filling missing data with last proper value
     out_prices_fixed.fillna(method = "ffill", inplace = True)
+
+
+
+
+
+
 
     ## creating a new df with adjusted stocks amounts
     out_stock_amounts = out_prices_fixed[ ["Date", "Ticker", "Stock Splits"]].copy(deep = True)
