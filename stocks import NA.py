@@ -31,16 +31,19 @@ investments["Purchase Price"] = investments["Purchase Price"].str.replace(",", "
 stock_prices_dataframes = []
 portfolio = []
 for index, ticker in investments.iterrows():
+    
     stock = yf.Ticker(ticker["Ticker"])
 
     stock_start_date = pd.to_datetime(ticker["Purchase Date"]
-                                     , dayfirst=False
-                                     , yearfirst = True)
+                                      , dayfirst=False
+                                      , yearfirst = True
+                                      )
     ## downloading price history
     out_prices_raw = stock.history(start = stock_start_date
-                                  , end = np.datetime64("today")
-                                  , interval = "1d"
-                                  , auto_adjust = False)
+                                   , end = np.datetime64("today")
+                                   , interval = "1d"
+                                   , auto_adjust = False
+                                   )
 
 
     ## adding ticker name
@@ -56,23 +59,33 @@ for index, ticker in investments.iterrows():
     ## putting dates into column (from index)
     out_prices_raw_cleared.reset_index(inplace=True)
 
-    out_prices_raw_cleared.rename( columns = {"index" : "Date", "Close" : "Price"}, inplace = True)
+    out_prices_raw_cleared.rename(columns = {"index" : "Date",
+                                             "Close" : "Price"}
+                                  , inplace = True
+                                  )
+    
     out_prices_raw_cleared["Date"] = out_prices_raw_cleared["Date"].astype(np.datetime64)
     
     ## filling missing data (no weekends, etc)
     all_days = pd.date_range(start = stock_start_date
-                                , end = np.datetime64("today")
-                                , freq = "1d")
+                             , end = np.datetime64("today")
+                             , freq = "1d"
+                             )
 
-    df_all_days = pd.DataFrame(all_days, columns = ["Date"])
+    df_all_days = pd.DataFrame(all_days
+                               , columns = ["Date"]
+                               )
 
     out_prices_fixed = pd.merge(left = df_all_days
-                                     , right = out_prices_raw_cleared
-                                     , on = "Date"
-                                     , how = "left")
+                                , right = out_prices_raw_cleared
+                                , on = "Date"
+                                , how = "left"
+                                )
 
     ## filling missing data with last proper value
-    out_prices_fixed.fillna(method = "ffill", inplace = True)
+    out_prices_fixed.fillna(method = "ffill"
+                            , inplace = True
+                            )
 
 
 
