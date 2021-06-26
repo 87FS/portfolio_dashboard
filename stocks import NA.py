@@ -34,13 +34,13 @@ for index, ticker in investments.iterrows():
     stock = yf.Ticker(ticker["Ticker"])
 
     stock_start_date = pd.to_datetime(ticker["Purchase Date"]
-                                , dayfirst=False
-                                , yearfirst = True
-                                , auto_adjust = False)
+                                     , dayfirst=False
+                                     , yearfirst = True)
     ## downloading price history
     out_prices_raw = stock.history(start = stock_start_date
-                                              , end = np.datetime64("today")
-                                              , interval = "1d")
+                                  , end = np.datetime64("today")
+                                  , interval = "1d"
+                                  , auto_adjust = False)
 
 
     ## adding ticker name
