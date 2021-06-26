@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import pandas_datareader as pdr
-#test
 
 ## connecting to spreadsheets through Google Cloud Service
 scope = ['https://spreadsheets.google.com/feeds',
@@ -159,7 +158,7 @@ for index, ticker in investments.iterrows():
     portfolio.append(out_stock_amounts)
 
 
-    #stock_prices_dataframes.append(out_prices_fixed)
+    stock_prices_dataframes.append(out_prices_fixed)
 x = portfolio[1][["Total Purchase", "Value Amount", "Dividend Amount"]].add(portfolio[0][["Total Purchase", "Value Amount", "Dividend Amount"]], fill_value = 0).add(portfolio[2][["Total Purchase", "Value Amount", "Dividend Amount"]], fill_value = 0)
 x["Average Price"] = x["Total Purchase"] / x["Value Amount"]
 #stocks = pd.concat(stock_prices_dataframes)
