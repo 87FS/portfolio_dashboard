@@ -40,7 +40,7 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
 
     ## fixing comma separated decimals in g-sheets
     purchases["Purchase Price"] = purchases["Purchase Price"].str.replace(",", ".")
-	purchases["Liquidation Rate"] = purchases["Liquidation Rate"].str.replace(",", ".")
+    purchases["Liquidation Rate"] = purchases["Liquidation Rate"].str.replace(",", ".")
 
     ## clearing data, unifying values
     for column in purchases.columns:
