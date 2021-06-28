@@ -6,26 +6,40 @@ import yfinance as yf
 import pandas_datareader as pdr
 
 ## connecting to spreadsheets through Google Cloud Service
-scope = ['https://spreadsheets.google.com/feeds',
-         'https://www.googleapis.com/auth/drive']
 
-credentials = ServiceAccountCredentials.from_json_keyfile_name(
-         r'C:\Users\nauka\Desktop\projekt portfolio\credentials.json', scope)
+json_cred = r'C:\Users\nauka\Desktop\projekt portfolio\credentials.json'
+gsheet = "portfolio"
+wksheet = "transactions2"
 
-gc = gspread.authorize(credentials)
+def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
+                   
+    scope = ['https://spreadsheets.google.com/feeds',
+             'https://www.googleapis.com/auth/drive']
 
-wks = gc.open("portfolio").worksheet("transactions")
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(json_cred, scope)
 
-## getting g-sheet data
-data = wks.get_all_values()
-headers = data.pop(0)
+    gc = gspread.authorize(credentials)
 
-purchases = pd.DataFrame(data, columns=headers)
+    wks = gc.open(spreadsheet).worksheet(worksheet)
 
-## fixing comma separated decimals in g-sheets
-purchases["Purchase Price"] = purchases["Purchase Price"].str.replace(",", ".")
-## unifying tickers
-purchases["Ticker"] = purchases["Ticker"].str.upper()
+    ## getting g-sheet data
+    data = wks.get_all_values()
+    headers = data.pop(0)
+
+    purchases = pd.DataFrame(data, columns=headers)
+
+    ## fixing comma separated decimals in g-sheets
+    purchases["Purchase Price"] = purchases["Purchase Price"].str.replace(",", ".")
+
+    ## clearing data, unifying values
+    for column in purchases.columns:
+        purchases[column] = purchases[column].str.strip()
+        if column in ["Ticker", "Currency"]:
+            purchases[column] = purchases[column].str.upper()
+        else:
+            purchases[column] = purchases[column].str.title()
+
+    return purchases
 
 
 def stock_parser(investments):
@@ -171,7 +185,7 @@ def stock_parser(investments):
 
     stocks = pd.concat(stock_prices_dataframes)
     stocks.sort_values(["Date", "Ticker"], inplace = True)
-    stocks.drop_duplicates()
+    stocks.drop_duplicates(inplace=True)
     stocks.reset_index(drop = True, inplace=True)
 
     portfolio = pd.concat(unmerged_portfolio_dataframes)
@@ -180,5 +194,5 @@ def stock_parser(investments):
 
     return stocks, portfolio
 
-
-stocks, portfolio = stock_parser(purchases)
+purchases_history = gspread_parser()
+stocks_history, portfolio_history = stock_parser(purchases_history)
