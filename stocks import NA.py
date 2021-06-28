@@ -39,7 +39,7 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
     purchases = pd.DataFrame(data, columns=headers)
 
     ## fixing comma separated decimals in g-sheets
-    purchases["Purchase Price"] = purchases["Purchase Price"].str.replace(",", ".")
+    purchases[["Purchase Price", "Liquidation Rate"]] = purchases[["Purchase Price", "Liquidation Rate"]].str.replace(",", ".")
 
     ## clearing data, unifying values
     for column in purchases.columns:
