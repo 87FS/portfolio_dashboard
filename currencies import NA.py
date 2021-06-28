@@ -8,7 +8,7 @@ import time
 
 json_cred = r'C:\Users\nauka\Desktop\projekt portfolio\credentials.json'
 gsheet = "portfolio"
-wksheet = "transactions2"
+wksheet = "transactions"
 
 def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
     ''' fetches the google spreadsheet with the history of stock purchases
@@ -49,6 +49,9 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
         else:
             purchases[column] = purchases[column].str.title()
 
+    purchases["Purchase Date"] = purchases["Purchase Date"].astype(np.datetime64)
+
+    
     return purchases
 
 
@@ -75,17 +78,16 @@ def currency_parser(investments):
                                       , api_key = "PLPX5PE8L7HVWLJ7")
             ## adding column with ticker
             currency_raw["Symbol"] = pair
-
-            ## setting ticker name first
-            order = [4,0,1,2,3]
-            currency_raw = currency_raw[ [currency_raw.columns[i] for i in order] ]
+            currency_raw["Currency"] = pair.replace("/PLN", "")
 
             ## getting dates out of index
             currency_raw.reset_index(inplace=True)
             currency_raw.rename( columns = {"index" : "Date"}, inplace = True)
             currency_raw["Date"] = currency_raw["Date"].astype(np.datetime64)
             currency_raw.drop(columns = ["open", "high", "low"], inplace = True)
-            currency_raw.rename(columns = {"close" : "Close"}, inplace = True)
+            currency_raw.rename(columns = {"close" : "Exchange Rate to PLN"}, inplace = True)
+
+            currency_raw = currency_raw[["Date", "Symbol", "Currency", "Exchange Rate to PLN"]]
 
                 ## filling missing data (no weekends, etc)
             all_days = pd.date_range(start = currency_start_date
@@ -123,5 +125,14 @@ def currency_parser(investments):
     return currencies
 
 
+purchases = gspread_parser()
 
-currencies_history = currency_parser(gspread_parser())
+currencies_history = currency_parser(purchases)
+
+purchases = pd.merge( purchases
+                      , currencies_history
+                      , how = "inner"
+                      , left_on = ["Purchase Date", "Currency"]
+                      , right_on = ["Date", "Currency"]
+                      )
+
