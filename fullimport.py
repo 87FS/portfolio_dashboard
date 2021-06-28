@@ -8,7 +8,7 @@ import time
 
 json_cred = r'C:\Users\nauka\Desktop\projekt portfolio\credentials.json'
 gsheet = "portfolio"
-wksheet = "transactions"
+wksheet = "transactions2"
 
 def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
     ''' fetches the google spreadsheet with the history of stock purchases
@@ -40,7 +40,7 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
 
     ## fixing comma separated decimals in g-sheets
     purchases["Purchase Price"] = purchases["Purchase Price"].str.replace(",", ".")
-
+    purchases["Liquidation Rate"] = purchases["Liquidation Rate"].str.replace(",", ".")
     ## clearing data, unifying values
     for column in purchases.columns:
         purchases[column] = purchases[column].str.strip()
@@ -135,6 +135,8 @@ purchases_history = pd.merge( purchases_history
                       , left_on = ["Purchase Date", "Currency"]
                       , right_on = ["Date", "Currency"]
                       )
+
+purchases_history.drop(columns = [ "Date", "Symbol" ], inplace = True)
 
 
 def stock_parser(investments):
@@ -312,4 +314,3 @@ def stock_parser(investments):
 
 
 stocks_history, portfolio_history = stock_parser(purchases_history)
-
