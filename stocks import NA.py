@@ -3,7 +3,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import pandas_datareader as pdr
 
 ## connecting to spreadsheets through Google Cloud Service
 
@@ -12,7 +11,18 @@ gsheet = "portfolio"
 wksheet = "transactions2"
 
 def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
-                   
+    ''' fetches the google spreadsheet with the history of stock purchases
+
+        json_cred is path for project auth credentials from Google Cloud Service
+        spreadsheet and worksheet are string with names
+
+        spreadsheet must contain columns:
+        Ticker = only ticker abbreviation existing on yahoo finance
+        Purchase Date = date in format yyyy-mm-dd
+        Purchase Price = total price (inc. fees) per stock on the moment of purchase
+        Purchase Amount = total amount bought on the moment of purchase
+        Currency = short abbreviation (like EUR, HKD) '''
+    
     scope = ['https://spreadsheets.google.com/feeds',
              'https://www.googleapis.com/auth/drive']
 
@@ -43,7 +53,16 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
 
 
 def stock_parser(investments):
-    ''' the function takes investments dataframe'''
+    ''' the function takes investments dataframe
+        and returns both cleared stocks prices history (with split, but without dividend adjust)
+        and portfolio history (all investors possesion per day, with ticker and adjusted amounts)
+
+        investments dataframe must contain columns:
+        Ticker = only ticker abbreviation existing on yahoo finance
+        Purchase Date = date in format yyyy-mm-dd
+        Purchase Price = total price (inc. fees) per stock on the moment of purchase
+        Purchase Amount = total amount bought on the moment of purchase
+        Currency = short abbreviation (like EUR, HKD) '''
     
     stock_prices_dataframes = [] # this df contains all df with stock prices (before combining)
     unmerged_portfolio_dataframes = [] # this df contains 1 df per each ticker (after combining)
@@ -193,6 +212,8 @@ def stock_parser(investments):
     portfolio.reset_index(drop = True, inplace=True)
 
     return stocks, portfolio
+
+
 
 purchases_history = gspread_parser()
 stocks_history, portfolio_history = stock_parser(purchases_history)
