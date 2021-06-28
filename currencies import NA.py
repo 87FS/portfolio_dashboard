@@ -11,7 +11,18 @@ gsheet = "portfolio"
 wksheet = "transactions2"
 
 def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
-                   
+    ''' fetches the google spreadsheet with the history of stock purchases
+
+        json_cred is path for project auth credentials from Google Cloud Service
+        spreadsheet and worksheet are string with names
+
+        spreadsheet must contain columns:
+        Ticker = only ticker abbreviation existing on yahoo finance
+        Purchase Date = date in format yyyy-mm-dd
+        Purchase Price = total price (inc. fees) per stock on the moment of purchase
+        Purchase Amount = total amount bought on the moment of purchase
+        Currency = short abbreviation (like EUR, HKD) '''
+    
     scope = ['https://spreadsheets.google.com/feeds',
              'https://www.googleapis.com/auth/drive']
 
@@ -40,12 +51,15 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
 
     return purchases
 
-## getting all currencies exchange rates
+
 
 def currency_parser(investments):
 
     ''' fetches historical exchange to PLN
-        for every distinct currency in the investment dataframe'''
+        for every distinct currency in the investments dataframe
+
+        investments is a dataframe containing columns "Date" and "Currency"
+        "Currency" column is a short abbreviation of currency name (like USD, EUR, etc)'''
     
     pairs = [currency + "/PLN" for currency in investments["Currency"].unique()]
     currency_start_date = investments["Purchase Date"].min()
@@ -95,19 +109,19 @@ def currency_parser(investments):
             ## overcoming API limits
             time.sleep(40)
 
-
-    ## adding pln to pln exchange for the sake of simplicity,
-    ## yeah it's always 1, but it makes life easier
+        ### DEPRECATED, only useful for polish stock exchange stocks ###
+    ## adding pln to pln exchange for the sake of simplicity in Power BI
     #pln_to_pln_dataframe = currency_prices_dataframes[0].copy(deep = True)
     #pln_to_pln_dataframe[["Symbol", "open", "high", "low", "close"]] = ["PLN/PLN", 1,1,1,1]
     #currency_prices_dataframes.append(pln_to_pln_dataframe)
 
 
     currencies = pd.concat(currency_prices_dataframes)
-    
     currencies.sort_values(["Date", "Symbol"], inplace = True)
     currencies.reset_index(drop = True, inplace = True)
 
     return currencies
+
+
 
 currencies_history = currency_parser(gspread_parser())
