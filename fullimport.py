@@ -8,7 +8,7 @@ import time
 
 json_cred = r'C:\Users\nauka\Desktop\projekt portfolio\credentials.json'
 gsheet = "portfolio"
-wksheet = "transactions2"
+wksheet = "transactions3"
 
 def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
     ''' fetches the google spreadsheet with the history of stock purchases
@@ -109,7 +109,7 @@ def currency_parser(investments):
             currency_prices_dataframes.append(currency_fixed)
 
             ## overcoming API limits
-            time.sleep(40)
+            time.sleep(65)
 
         ### DEPRECATED, only useful for polish stock exchange stocks ###
     ## adding pln to pln exchange for the sake of simplicity in Power BI
@@ -172,7 +172,7 @@ def stock_parser(investments):
             prices_raw = stock.history(start = stock_start_date
                                            , end = np.datetime64("today")
                                            , interval = "1d"
-                                           , auto_adjust = False # seems like True adjusts backwards for dividends
+                                           , auto_adjust = False # True adjusts backwards for dividends
                                            )
 
 
@@ -274,7 +274,7 @@ def stock_parser(investments):
             ## filling missing data with last proper value
             stock_amounts.fillna(method = "ffill", inplace = True)
             stock_amounts.drop(columns = "Stock Splits", inplace = True)
-
+            stock_amounts.set_index("Date", inplace = True) ## Date must become an index for the sake of .add() 
             single_ticker_dataframes.append(stock_amounts)
             stock_prices_dataframes.append(prices_fixed)
 
@@ -285,6 +285,8 @@ def stock_parser(investments):
                                                                             /
                                                                             single_ticker_dataframes[0]["Value Amount"])
                                                                         , 2)
+            single_ticker_dataframes[0].reset_index(drop = True, inplace = True)
+            single_ticker_dataframes[0].rename(columns = { "index" : "Date" } )
             unmerged_portfolio_dataframes.append(single_ticker_dataframes[0])
 
         else:
@@ -297,19 +299,21 @@ def stock_parser(investments):
                                                                                        , fill_value = 0 ))
 
             base["Average Price in PLN"] = round(base["Total Purchase in PLN"] / base["Value Amount"], 2)
+            base.reset_index(drop = True, inplace = True)
+            base.rename(columns = { "index" : "Date" } )
             unmerged_portfolio_dataframes.append(base)
 
-
+    
     stocks = pd.concat(stock_prices_dataframes)
     stocks.sort_values(["Date", "Ticker"], inplace = True)
     stocks.drop_duplicates(inplace=True)
     stocks.reset_index(drop = True, inplace=True)
 
     portfolio = pd.concat(unmerged_portfolio_dataframes)
-    portfolio.sort_values(["Date", "Ticker"], inplace = True)
+    #portfolio.sort_values(["Date", "Ticker"], inplace = True)
     portfolio.reset_index(drop = True, inplace=True)
 
-    return stocks, portfolio
+    return stocks, portfolio, single_ticker_dataframes
 
 
-stocks_history, portfolio_history = stock_parser(purchases_history)
+stocks_history, portfolio_history, single_ticker_dataframes = stock_parser(purchases_history)
