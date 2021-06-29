@@ -8,7 +8,7 @@ import time
 
 json_cred = r'C:\Users\nauka\Desktop\projekt portfolio\credentials.json'
 gsheet = "portfolio"
-wksheet = "transactions3"
+wksheet = "transactions2"
 
 def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
     ''' fetches the google spreadsheet with the history of stock purchases
@@ -50,7 +50,8 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
             purchases[column] = purchases[column].str.title()
 
     purchases["Purchase Date"] = purchases["Purchase Date"].astype(np.datetime64)
-
+    purchases.sort_values(by = "Purchase Date", inplace = True)
+    purchases.reset_index(drop = True, inplace = True)
     
     return purchases
 
@@ -285,8 +286,8 @@ def stock_parser(investments):
                                                                             /
                                                                             single_ticker_dataframes[0]["Value Amount"])
                                                                         , 2)
-            single_ticker_dataframes[0].reset_index(drop = True, inplace = True)
-            single_ticker_dataframes[0].rename(columns = { "index" : "Date" } )
+            single_ticker_dataframes[0].reset_index(drop = False, inplace = True)
+            single_ticker_dataframes[0].rename(columns = { "index" : "Date" } , inplace=True)
             unmerged_portfolio_dataframes.append(single_ticker_dataframes[0])
 
         else:
@@ -299,8 +300,8 @@ def stock_parser(investments):
                                                                                        , fill_value = 0 ))
 
             base["Average Price in PLN"] = round(base["Total Purchase in PLN"] / base["Value Amount"], 2)
-            base.reset_index(drop = True, inplace = True)
-            base.rename(columns = { "index" : "Date" } )
+            base.reset_index(drop = False, inplace = True)
+            base.rename(columns = { "index" : "Date" } , inplace = True )
             unmerged_portfolio_dataframes.append(base)
 
     
@@ -310,10 +311,10 @@ def stock_parser(investments):
     stocks.reset_index(drop = True, inplace=True)
 
     portfolio = pd.concat(unmerged_portfolio_dataframes)
-    #portfolio.sort_values(["Date", "Ticker"], inplace = True)
+    portfolio.sort_values(["Date", "Ticker"], inplace = True)
     portfolio.reset_index(drop = True, inplace=True)
 
-    return stocks, portfolio, single_ticker_dataframes
+    return stocks, portfolio
 
 
-stocks_history, portfolio_history, single_ticker_dataframes = stock_parser(purchases_history)
+stocks_history, portfolio_history = stock_parser(purchases_history)
