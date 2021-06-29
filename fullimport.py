@@ -273,7 +273,6 @@ def stock_parser(investments):
             
             ## filling missing data with last proper value
             stock_amounts.fillna(method = "ffill", inplace = True)
-            stock_amounts.set_index("Date", inplace = True)
             stock_amounts.drop(columns = "Stock Splits", inplace = True)
 
             single_ticker_dataframes.append(stock_amounts)
