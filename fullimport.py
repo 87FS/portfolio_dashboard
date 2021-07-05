@@ -8,7 +8,7 @@ import time
 
 json_cred = r'C:\Users\nauka\Desktop\projekt portfolio\credentials.json'
 gsheet = "portfolio"
-wksheet = "transactions2"
+wksheet = "transactions"
 
 def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksheet):
     ''' fetches the google spreadsheet with the history of stock purchases
@@ -27,9 +27,7 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
              'https://www.googleapis.com/auth/drive']
 
     credentials = ServiceAccountCredentials.from_json_keyfile_name(json_cred, scope)
-
     gc = gspread.authorize(credentials)
-
     wks = gc.open(spreadsheet).worksheet(worksheet)
 
     ## getting g-sheet data
@@ -41,6 +39,7 @@ def gspread_parser(json_cred = json_cred, spreadsheet = gsheet, worksheet = wksh
     ## fixing comma separated decimals in g-sheets
     purchases["Purchase Price"] = purchases["Purchase Price"].str.replace(",", ".")
     purchases["Liquidation Rate"] = purchases["Liquidation Rate"].str.replace(",", ".")
+    
     ## clearing data, unifying values
     for column in purchases.columns:
         purchases[column] = purchases[column].str.strip()
@@ -126,6 +125,9 @@ def currency_parser(investments):
     return currencies
 
 
+
+
+
 purchases_history = gspread_parser()
 
 currencies_history = currency_parser(purchases_history)
@@ -142,8 +144,9 @@ purchases_history.drop(columns = [ "Date", "Symbol" ], inplace = True)
 
 def stock_parser(investments):
     ''' the function takes investments dataframe
-        and returns both cleared stocks prices history (with split, but without dividend adjust)
-        and portfolio history (all investors possesion per day, with ticker and adjusted amounts)
+        and returns cleared stocks prices history (with split, but without dividend adjust),
+        portfolio history (all investors possesion per day, with ticker and adjusted amounts)
+        and polish monthly CPI adjusted purchase prices 
 
         investments dataframe must contain columns:
         Ticker = only ticker abbreviation existing on yahoo finance
@@ -151,7 +154,43 @@ def stock_parser(investments):
         Purchase Price = total price (inc. fees) per stock on the moment of purchase
         Purchase Amount = total amount bought on the moment of purchase
         Currency = short abbreviation (like EUR, HKD) '''
+
+            ## GETTING POLISH CPI DATA
+    main = r'https://stat.gov.pl/download/'
+    raport = r'gfx/portalinformacyjny/pl/defaultstronaopisowa/4741/1/1/'
+    file = r'miesieczne_wskazniki_cen_towarow_i_uslug_konsumpcyjnych_od_1982_roku.xlsx'
+
+    link = main+raport+file
+
+    ## getting polish CPI data, the file is permanent and updated every month
+    df = pd.read_excel(
+                        link
+                        , header = 0
+                        , usecols = [2,3,4,5]
+                        )
+
+    ## slicing just the month to month cpi comparison
+    formatted = df[df["Sposób prezentacji"] == "Poprzedni miesiąc = 100"].copy(deep=True)
+    formatted.drop(columns = ["Sposób prezentacji"], inplace = True)
+    formatted.rename(columns = {"Rok":"Year", "Miesiąc":"Month", "Wartość":"CPIm2m"}, inplace = True)
+
+    ## combining columns with separate parts to get date column
+    formatted["Date"] = formatted["Year"].astype('str') + "-" + formatted["Month"].astype('str') + "-1"
+    formatted["Date"] = formatted["Date"].astype(np.datetime64)
+    formatted.sort_values(by = ["Year", "Month"], inplace = True, ignore_index = True)
+
+    ## here is the issue whether to count current month inflation or not, for now I decided not to
+    start_date = investments["Purchase Date"].min()
+    cpi = formatted[formatted["Date"] >= start_date][["Date", "CPIm2m"]].copy(deep = True)
+    cpi["CPIm2m"] = cpi["CPIm2m"]/100
+    cpi.reset_index(drop = True, inplace=True)
+    cpi.dropna(inplace = True)
+ 
+
+
+
     
+            ## GETTING STOCK PRICES
     stock_prices_dataframes = [] # this df contains all df with stock prices (before combining)
     unmerged_portfolio_dataframes = [] # this df contains 1 df per each ticker (after combining)
 
@@ -219,15 +258,13 @@ def stock_parser(investments):
                                     )
 
 
+            stock_prices_dataframes.append(prices_fixed)
 
 
-
-                        ## parsing the spreadsheet portfolio to create portfolio FACT table
+                        ## CREATING PORTFOLIO HISTORY TABLE
             
             stock_amounts = prices_fixed[ ["Date", "Ticker", "Stock Splits"]].copy(deep = True)
-##            stock_amounts["Purchase Price"] = ticker["Purchase Price"]
-##            stock_amounts["Purchase Price"] = stock_amounts["Purchase Price"].astype(float)
-            
+          
             ## checking if there were any splits
             if stock_amounts["Stock Splits"].sum() > 0:
 
@@ -260,7 +297,7 @@ def stock_parser(investments):
                 stock_amounts["Value Amount"] = stock_amounts["Value Amount"].astype(float)
                 stock_amounts["Dividend Amount"] = stock_amounts["Dividend Amount"].astype(float)
                 
-
+            ## adding total purchase in PLN to easily calculate combined average price
             stock_amounts["Total Purchase in PLN"] = (float(ticker["Purchase Price"])
                                                       *
                                                       float(ticker["Purchase Amount"])
@@ -275,9 +312,56 @@ def stock_parser(investments):
             ## filling missing data with last proper value
             stock_amounts.fillna(method = "ffill", inplace = True)
             stock_amounts.drop(columns = "Stock Splits", inplace = True)
-            stock_amounts.set_index("Date", inplace = True) ## Date must become an index for the sake of .add() 
-            single_ticker_dataframes.append(stock_amounts)
-            stock_prices_dataframes.append(prices_fixed)
+
+            
+            ## combining with monthly CPI
+
+            ## adjusting cpi table for ticker (fixing 1st day of month issue)
+            adjusted_cpi = cpi[cpi["Date"] > stock_amounts["Date"].min()]
+            
+            cpi_merged = pd.merge(
+                                    left = stock_amounts
+                                    , right = adjusted_cpi
+                                    , on = "Date"
+                                    , how = "inner"
+                                    )
+
+            ## adding column for cpi adjusted total purchase 
+            cpi_merged["Total Purchase in PLN CPI adj"] = np.nan
+
+            ## setting initial total purchase as a starting point
+            initial_purchase = cpi_merged.loc[0,["Total Purchase in PLN"]][0]
+
+            ## setting first value in cpi as a starting point
+            first_cpi = cpi_merged.loc[0,["CPIm2m"]][0]
+
+            ## getting first cpi adjusted total purchase value (next month from purchase)
+            cpi_merged.loc[0,["Total Purchase in PLN CPI adj"]] = initial_purchase * first_cpi
+
+            ## filling all monthly values for changing cpi (its previous total purchase cpi adjusted multiplied by this month cpi)
+            for index, row in cpi_merged[1:].iterrows():
+                cpi_merged.loc[index, ["Total Purchase in PLN CPI adj"]] = cpi_merged.loc[index-1, ["Total Purchase in PLN CPI adj"]] * row["CPIm2m"]
+
+            ## combining initial portfolio history dataframe with cpi adjusted values
+            complete = pd.merge(
+                                left = stock_amounts
+                                , right = cpi_merged[["Date", "Total Purchase in PLN CPI adj"]]
+                                , on = "Date"
+                                , how = "left"
+                                )
+            ## filling first value (the initial CPI 
+            complete.loc[0, ["Total Purchase in PLN CPI adj"]] = initial_purchase
+
+            ## filling the rest of the NaNs
+            complete["Total Purchase in PLN CPI adj"].fillna(method = 'ffill', inplace = True)
+
+
+
+
+            ## Date must become an index for the sake of .add() 
+            complete.set_index("Date", inplace = True) 
+            single_ticker_dataframes.append(complete)
+
 
         if len(single_ticker_dataframes) == 1:
             single_ticker_dataframes[0]["Average Price in PLN"] = round(
@@ -286,6 +370,14 @@ def stock_parser(investments):
                                                                             /
                                                                             single_ticker_dataframes[0]["Value Amount"])
                                                                         , 2)
+
+            single_ticker_dataframes[0]["Average Price in PLN CPI adj"] = round(
+                                                                        (
+                                                                            single_ticker_dataframes[0]["Total Purchase in PLN CPI adj"]
+                                                                            /
+                                                                            single_ticker_dataframes[0]["Value Amount"])
+                                                                        , 2)
+            
             single_ticker_dataframes[0].reset_index(drop = False, inplace = True)
             single_ticker_dataframes[0].rename(columns = { "index" : "Date" } , inplace=True)
             unmerged_portfolio_dataframes.append(single_ticker_dataframes[0])
@@ -294,12 +386,13 @@ def stock_parser(investments):
         ## combining all purchases of the same ticker into one dataframe        
             base = single_ticker_dataframes[0].copy(deep = True)
             for i in range(1, len(single_ticker_dataframes)):
-                base[["Total Purchase in PLN", "Value Amount", "Dividend Amount"]] = (base[["Total Purchase in PLN", "Value Amount", "Dividend Amount"]]
+                base[["Total Purchase in PLN", "Value Amount", "Dividend Amount", "Total Purchase in PLN CPI adj"]] = (base[["Total Purchase in PLN", "Value Amount", "Dividend Amount", "Total Purchase in PLN CPI adj"]]
                                                                                       .add
-                                                                                      (single_ticker_dataframes[i][["Total Purchase in PLN", "Value Amount", "Dividend Amount"]]
+                                                                                      (single_ticker_dataframes[i][["Total Purchase in PLN", "Value Amount", "Dividend Amount", "Total Purchase in PLN CPI adj"]]
                                                                                        , fill_value = 0 ))
 
             base["Average Price in PLN"] = round(base["Total Purchase in PLN"] / base["Value Amount"], 2)
+            base["Average Price in PLN CPI adj"] = round(base["Total Purchase in PLN CPI adj"] / base["Value Amount"], 2)
             base.reset_index(drop = False, inplace = True)
             base.rename(columns = { "index" : "Date" } , inplace = True )
             unmerged_portfolio_dataframes.append(base)
