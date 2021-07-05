@@ -29,7 +29,8 @@ formatted.sort_values(by = ["Year", "Month"], inplace = True, ignore_index = Tru
 start_date = "2019-04-08" ## placeholder, it will be the min of all dates in purchases spreadsheet
 cpi = formatted[formatted["Date"] >= start_date][["Date", "CPIm2m"]].copy(deep = True)
 cpi["CPIm2m"] = cpi["CPIm2m"]/100
-cpi.reset_index(drop = True, inplace=True)
+cpi.reset_index(inplace=True)
+cpi.drop(columns = ["index"], inplace = True)
 cpi.dropna(inplace = True)
 
 stock = pd.read_csv(
